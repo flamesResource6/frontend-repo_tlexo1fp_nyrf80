@@ -1,6 +1,67 @@
 import { useEffect, useState, useMemo } from 'react'
+import { Line } from 'react-chartjs-2'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Tooltip,
+  Filler,
+} from 'chart.js'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler)
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+
+function MiniChart({ coinId }) {
+  const [series, setSeries] = useState([])
+
+  useEffect(() => {
+    let mounted = true
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/coin/${coinId}/history?days=7`)
+        const data = await res.json()
+        if (mounted) setSeries(data.prices || [])
+      } catch (e) {
+        // ignore
+      }
+    }
+    load()
+  }, [coinId])
+
+  if (!series.length) return null
+
+  const labels = series.map(p => new Date(p[0]).toLocaleDateString())
+  const values = series.map(p => p[1])
+
+  return (
+    <Line
+      data={{
+        labels,
+        datasets: [
+          {
+            data: values,
+            fill: true,
+            borderColor: 'rgba(16,185,129,1)',
+            backgroundColor: 'rgba(16,185,129,0.1)',
+            borderWidth: 2,
+            tension: 0.3,
+            pointRadius: 0,
+          },
+        ],
+      }}
+      options={{
+        responsive: true,
+        elements: { point: { radius: 0 } },
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: { x: { display: false }, y: { display: false } },
+      }}
+      height={40}
+    />
+  )
+}
 
 function Markets() {
   const [coins, setCoins] = useState([])
@@ -51,16 +112,19 @@ function Markets() {
             <div key={c.id} className="group bg-slate-900/60 border border-emerald-400/20 rounded-xl p-4 hover:border-emerald-400/50 transition-colors">
               <div className="flex items-center gap-3">
                 <img src={c.image} alt={c.name} className="w-8 h-8 rounded-full" />
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-slate-100 font-medium">{c.name}</span>
+                    <span className="text-slate-100 font-medium truncate">{c.name}</span>
                     <span className="text-slate-400 text-sm uppercase">{c.symbol}</span>
                   </div>
-                  <div className="text-emerald-300 font-semibold">${c.current_price?.toLocaleString()}</div>
+                  <div className="text-emerald-300 font-semibold">${Number(c.current_price)?.toLocaleString()}</div>
                 </div>
                 <div className={"text-sm " + ((c.price_change_percentage_24h ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
-                  {c.price_change_percentage_24h?.toFixed(2)}%
+                  {Number(c.price_change_percentage_24h ?? 0).toFixed(2)}%
                 </div>
+              </div>
+              <div className="mt-3">
+                <MiniChart coinId={c.id} />
               </div>
             </div>
           ))
